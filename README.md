@@ -8,6 +8,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org/)
 [![Discord](https://img.shields.io/badge/Discord-7289DA?logo=discord&logoColor=white)](https://discord.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![CI/CD Pipeline](https://github.com/baneronetwo/Lapidar-BD/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/baneronetwo/Lapidar-BD/actions/workflows/ci-cd.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/baneronetwo/Lapidar-BD)](https://github.com/baneronetwo/Lapidar-BD/releases)
 
 </div>
 
@@ -199,6 +201,17 @@ To use the YouTube audio playback feature:
 ## 📜 License
 
 [MIT License](LICENSE) © 2025 BANER
+
+## 🔄 CI/CD и Автоматизация
+
+Проект использует GitHub Actions для автоматизации проверки кода и создания релизов:
+
+- **Проверка кода**: Автоматический линтинг и тестирование при каждом пуше и PR
+- **Автоматические релизы**: При создании тега с версией (например, `v1.0.0`) автоматически создаётся релиз с бинарными файлами для Windows, Linux и macOS
+
+Чтобы создать новый релиз:
+1. Создайте и отправьте тег: `git tag v1.0.0 && git push origin v1.0.0`
+2. GitHub Actions автоматически соберёт бинарные файлы и создаст релиз
 
 ## 🤝 Contributing
 
