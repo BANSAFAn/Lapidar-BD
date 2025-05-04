@@ -1,0 +1,15 @@
+{
+  "token": "*****",
+  "prefix": "/",
+  "gemini_api_key": "******",
+  "grok_api_key": "",
+  "chatgpt_api_key": "",
+  "qwen_api_key": "",
+  "claude_api_key": "",
+  "default_ai": "gemini",
+  "report_threshold": 3,
+  "admin_role_id": "*****",
+  "mod_role_id": "******",
+  "default_language": "ru",
+  "bot_name": "Lapidar"
+}
