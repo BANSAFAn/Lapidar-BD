@@ -11,8 +11,7 @@ import (
 
 var DB *sql.DB
 
-// Initialize инициализирует соединение с базой данных и создает необходимые таблицы
-func Initialize() error {
+func InitializeDB() error {
 	// Проверяем существование директории для базы данных
 	if _, err := os.Stat("data"); os.IsNotExist(err) {
 		err := os.Mkdir("data", 0755)
