@@ -8,8 +8,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://golang.org/)
 [![Discord](https://img.shields.io/badge/Discord-7289DA?logo=discord&logoColor=white)](https://discord.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![CI/CD Pipeline](https://github.com/baneronetwo/Lapidar-BD/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/baneronetwo/Lapidar-BD/actions/workflows/ci-cd.yml)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/baneronetwo/Lapidar-BD)](https://github.com/baneronetwo/Lapidar-BD/releases)
+[![CI/CD Pipeline](https://github.com/BANSAFAn/Lapidar-BD/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/BANSAFAn/Lapidar-BD/actions/workflows/ci-cd.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/BANSAFAn/Lapidar-BD)](https://github.com/BANSAFAn/Lapidar-BD/releases)
 
 </div>
 
