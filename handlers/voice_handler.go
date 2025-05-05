@@ -226,15 +226,15 @@ func DownloadYouTubeAudio(url string) (string, error) {
 		format = *formatPtr
 	}
 
-	resp, _, err := client.GetStream(video, &format)
+	// Получаем URL для скачивания напрямую
+	url, err := client.GetStreamURL(video, &format)
 	if err != nil {
-		return "", fmt.Errorf("ошибка получения потока: %w", err)
+		return "", fmt.Errorf("ошибка получения URL потока: %w", err)
 	}
-	defer resp.Close()
 
 	filePath := fmt.Sprintf("data/audio/%s.mp3", video.ID)
 
-	file, err := http.Get(resp.Request.URL.String())
+	file, err := http.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("ошибка загрузки файла: %w", err)
 	}

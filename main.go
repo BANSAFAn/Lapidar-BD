@@ -31,7 +31,11 @@ func main() {
 	}
 
 	// Инициализация базы данных
-	if err := db.Initialize(); err != nil {
+	dbConfig := db.DatabaseConfig{
+		Type:     "sqlite",
+		Database: "data/bot.db",
+	}
+	if err := db.Initialize(dbConfig); err != nil {
 		fmt.Println("Ошибка инициализации базы данных:", err)
 		return
 	}
