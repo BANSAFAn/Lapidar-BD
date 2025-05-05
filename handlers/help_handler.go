@@ -41,7 +41,9 @@ func HandleHelpCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// Удаляем вебхук после использования
-	s.WebhookDelete(webhook.ID)
+	if err := s.WebhookDelete(webhook.ID); err != nil {
+		fmt.Printf("Ошибка при удалении вебхука: %v\n", err)
+	}
 }
 
 // createHelpEmbed создает эмбед с информацией о командах
@@ -109,5 +111,7 @@ func createHelpEmbed() *discordgo.MessageEmbed {
 // sendHelpEmbed отправляет эмбед с информацией о командах через обычное сообщение
 func sendHelpEmbed(s *discordgo.Session, channelID string) {
 	embed := createHelpEmbed()
-	s.ChannelMessageSendEmbed(channelID, embed)
+	if _, err := s.ChannelMessageSendEmbed(channelID, embed); err != nil {
+		fmt.Printf("Ошибка при отправке эмбеда: %v\n", err)
+	}
 }

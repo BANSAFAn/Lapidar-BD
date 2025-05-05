@@ -44,7 +44,9 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if banned {
 		// Удаляем сообщение от забаненного пользователя
-		s.ChannelMessageDelete(m.ChannelID, m.ID)
+		if err := s.ChannelMessageDelete(m.ChannelID, m.ID); err != nil {
+			fmt.Printf("Ошибка при удалении сообщения: %v\n", err)
+		}
 		return
 	}
 
@@ -260,7 +262,9 @@ func handleReportConfirmation(s *discordgo.Session, r *discordgo.MessageReaction
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	s.ChannelMessageEditEmbed(r.ChannelID, r.MessageID, embed)
+	if _, err := s.ChannelMessageEditEmbed(r.ChannelID, r.MessageID, embed); err != nil {
+		fmt.Printf("Ошибка при редактировании сообщения: %v\n", err)
+	}
 
 	// Если достигнут порог репортов, баним пользователя
 	if count >= cfg.ReportThreshold {
@@ -308,7 +312,9 @@ func handleReportRejection(s *discordgo.Session, r *discordgo.MessageReactionAdd
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	s.ChannelMessageEditEmbed(r.ChannelID, r.MessageID, embed)
+	if _, err := s.ChannelMessageEditEmbed(r.ChannelID, r.MessageID, embed); err != nil {
+		fmt.Printf("Ошибка при редактировании сообщения: %v\n", err)
+	}
 
 	// Удаляем репорт из кэша
 	reports.RemoveReportMessage(r.MessageID)

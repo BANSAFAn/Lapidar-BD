@@ -2,6 +2,8 @@ package main
 
 import (
 	"discord-bot/config"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -25,5 +27,15 @@ func TestConfigLoad(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Здесь можно добавить код для настройки тестового окружения
 	// перед запуском тестов
+
+	// Удаляем неподдерживаемый флаг testlogfile, который вызывает ошибку
+	args := []string{}
+	for _, arg := range os.Args {
+		if !strings.HasPrefix(arg, "-test.testlogfile") {
+			args = append(args, arg)
+		}
+	}
+	os.Args = args
+
 	m.Run()
 }

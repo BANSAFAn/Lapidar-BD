@@ -50,17 +50,17 @@ func CreateReport(s *discordgo.Session, channelID, reportedUserID, reporterID, r
 		Color: 0xFFA500, // Оранжевый цвет для непроверенных репортов
 		Fields: []*discordgo.MessageEmbedField{
 			{
-				Name: "Пользователь",
-				Value: fmt.Sprintf("%s#%s (%s)", reportedUser.Username, reportedUser.Discriminator, reportedUserID),
+				Name:   "Пользователь",
+				Value:  fmt.Sprintf("%s#%s (%s)", reportedUser.Username, reportedUser.Discriminator, reportedUserID),
 				Inline: true,
 			},
 			{
-				Name: "Отправитель",
-				Value: fmt.Sprintf("%s#%s (%s)", reporter.Username, reporter.Discriminator, reporterID),
+				Name:   "Отправитель",
+				Value:  fmt.Sprintf("%s#%s (%s)", reporter.Username, reporter.Discriminator, reporterID),
 				Inline: true,
 			},
 			{
-				Name: "Причина",
+				Name:  "Причина",
 				Value: reason,
 			},
 		},
@@ -77,8 +77,12 @@ func CreateReport(s *discordgo.Session, channelID, reportedUserID, reporterID, r
 	}
 
 	// Добавляем реакции для модерации
-	s.MessageReactionAdd(channelID, msg.ID, "✅")
-	s.MessageReactionAdd(channelID, msg.ID, "❌")
+	if err := s.MessageReactionAdd(channelID, msg.ID, "✅"); err != nil {
+		fmt.Printf("Ошибка добавления реакции: %v\n", err)
+	}
+	if err := s.MessageReactionAdd(channelID, msg.ID, "❌"); err != nil {
+		fmt.Printf("Ошибка добавления реакции: %v\n", err)
+	}
 
 	// Сохраняем информацию о сообщении
 	reportMutex.Lock()

@@ -6,13 +6,14 @@ run:
   # Включить все линтеры по умолчанию
   tests: true
   # Не запускать линтеры на сгенерированных файлах
-  skip-dirs:
-    - vendor
+  # Устаревшая опция skip-dirs заменена на exclude-dirs в секции issues
 
 # Настройки вывода
 output:
   # Формат вывода: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
-  format: colored-line-number
+  # Устаревшая опция format заменена на formats
+  formats:
+    - colored-line-number
   # Печатать строки кода с проблемами
   print-issued-lines: true
   # Печатать линтер, который нашел проблему
@@ -41,6 +42,9 @@ linters:
 issues:
   # Максимальное количество проблем с одинаковым текстом
   max-same-issues: 3
+  # Исключить директории из проверки (перенесено из run.skip-dirs)
+  exclude-dirs:
+    - vendor
   # Исключить проблемы для определенных путей
   exclude-rules:
     - path: _test\.go

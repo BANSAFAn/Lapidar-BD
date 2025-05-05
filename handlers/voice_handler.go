@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"sync"
 
@@ -26,38 +27,52 @@ var voiceMutex sync.Mutex
 
 func HandlePlayCommand(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if len(args) < 1 {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("play_usage", "!"))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_usage", "!")); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
 	url := args[0]
 
 	if !isValidYouTubeURL(url) {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("play_invalid_url"))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_invalid_url")); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
 	voiceChannelID := findUserVoiceChannel(s, m.GuildID, m.Author.ID)
 	if voiceChannelID == "" {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("play_not_in_voice"))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_not_in_voice")); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
-	s.ChannelMessageSend(m.ChannelID, localization.GetText("play_joining"))
+	if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_joining")); err != nil {
+		fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+	}
 
 	vc, err := joinVoiceChannel(s, m.GuildID, voiceChannelID)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("play_error", err.Error()))
+		if _, err2 := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_error", err.Error())); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err2)
+		}
 		return
 	}
 
 	videoTitle, err := playYouTubeAudio(s, vc, url, m.GuildID)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("play_error", err.Error()))
+		if _, err2 := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_error", err.Error())); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err2)
+		}
 		return
 	}
 
-	s.ChannelMessageSend(m.ChannelID, localization.GetText("play_now_playing", videoTitle))
+	if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("play_now_playing", videoTitle)); err != nil {
+		fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+	}
 }
 
 func findUserVoiceChannel(s *discordgo.Session, guildID, userID string) string {
@@ -84,7 +99,9 @@ func joinVoiceChannel(s *discordgo.Session, guildID, channelID string) (*VoiceIn
 			return vi, nil
 		}
 
-		vi.connection.Disconnect()
+		if err := vi.connection.Disconnect(); err != nil {
+			return nil, fmt.Errorf("ошибка при отключении от голосового канала: %w", err)
+		}
 		delete(voiceInstances, guildID)
 	}
 
@@ -174,7 +191,9 @@ func HandleStopCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	voiceMutex.Unlock()
 
 	if !exists {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("stop_not_playing"))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("stop_not_playing")); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
@@ -182,7 +201,9 @@ func HandleStopCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	vi.stopped = true
 	vi.mutex.Unlock()
 
-	s.ChannelMessageSend(m.ChannelID, localization.GetText("stop_success"))
+	if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("stop_success")); err != nil {
+		fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+	}
 }
 
 func HandleLeaveCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -191,7 +212,9 @@ func HandleLeaveCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	vi, exists := voiceInstances[m.GuildID]
 	if !exists {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("leave_not_in_voice"))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("leave_not_in_voice")); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
@@ -199,10 +222,17 @@ func HandleLeaveCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	vi.stopped = true
 	vi.mutex.Unlock()
 
-	vi.connection.Disconnect()
+	if err := vi.connection.Disconnect(); err != nil {
+		if _, err2 := s.ChannelMessageSend(m.ChannelID, localization.GetText("leave_error", err.Error())); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения об ошибке: %v\n", err2)
+		}
+		return
+	}
 	delete(voiceInstances, m.GuildID)
 
-	s.ChannelMessageSend(m.ChannelID, localization.GetText("leave_success"))
+	if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("leave_success")); err != nil {
+		fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+	}
 }
 
 func DownloadYouTubeAudio(url string) (string, error) {
@@ -232,13 +262,37 @@ func DownloadYouTubeAudio(url string) (string, error) {
 		return "", fmt.Errorf("ошибка получения URL потока: %w", err)
 	}
 
+	// Создаем директорию для аудио файлов, если она не существует
+	if err := os.MkdirAll("data/audio", 0755); err != nil {
+		return "", fmt.Errorf("ошибка создания директории: %w", err)
+	}
+
 	filePath := fmt.Sprintf("data/audio/%s.mp3", video.ID)
 
-	file, err := http.Get(url)
+	// Получаем данные по URL
+	resp, err := http.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("ошибка загрузки файла: %w", err)
 	}
-	defer file.Body.Close()
+	defer resp.Body.Close()
+
+	// Проверяем статус ответа
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("ошибка при загрузке файла: статус %d", resp.StatusCode)
+	}
+
+	// Создаем файл для сохранения
+	out, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("ошибка создания файла: %w", err)
+	}
+	defer out.Close()
+
+	// Копируем данные из ответа в файл
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("ошибка при записи файла: %w", err)
+	}
 
 	return filePath, nil
 }

@@ -127,7 +127,9 @@ func InitAICommands(s *discordgo.Session) error {
 // HandleAICommand обрабатывает текстовые команды AI (для обратной совместимости)
 func HandleAICommand(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if len(args) == 0 {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_usage", cfg.Prefix))
+		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_usage", cfg.Prefix)); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 		return
 	}
 
@@ -144,12 +146,16 @@ func HandleAICommand(s *discordgo.Session, m *discordgo.MessageCreate, args []st
 	}
 
 	// Отправляем сообщение о том, что запрос обрабатывается
-	s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_processing"))
+	if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_processing")); err != nil {
+		fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+	}
 
 	// Получаем ответ от AI
 	response, err := generateAIResponse(modelName, prompt)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_error", err.Error()))
+		if _, err2 := s.ChannelMessageSend(m.ChannelID, localization.GetText("ai_error", err.Error())); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err2)
+		}
 		return
 	}
 
@@ -163,16 +169,21 @@ func handleAIInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	prompt := options[0].StringValue()
 
 	// Отправляем сообщение о том, что запрос обрабатывается
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
+	}); err != nil {
+		fmt.Printf("Ошибка отправки ответа на взаимодействие: %v\n", err)
+		return
+	}
 
 	// Получаем ответ от AI по умолчанию
 	response, err := generateAIResponse("", prompt)
 	if err != nil {
-		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		if _, err2 := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: localization.GetText("ai_error", err.Error()),
-		})
+		}); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err2)
+		}
 		return
 	}
 
@@ -187,16 +198,21 @@ func handleAIModelInteraction(s *discordgo.Session, i *discordgo.InteractionCrea
 	prompt := options[0].StringValue()
 
 	// Отправляем сообщение о том, что запрос обрабатывается
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
+	}); err != nil {
+		fmt.Printf("Ошибка отправки ответа на взаимодействие: %v\n", err)
+		return
+	}
 
 	// Получаем ответ от указанной модели AI
 	response, err := generateAIResponse(modelName, prompt)
 	if err != nil {
-		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		if _, err2 := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: localization.GetText("ai_error", err.Error()),
-		})
+		}); err2 != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err2)
+		}
 		return
 	}
 
@@ -230,10 +246,14 @@ func sendAIResponse(s *discordgo.Session, channelID string, response string) {
 	if len(response) > 2000 {
 		chunks := splitMessage(response, 2000)
 		for _, chunk := range chunks {
-			s.ChannelMessageSend(channelID, chunk)
+			if _, err := s.ChannelMessageSend(channelID, chunk); err != nil {
+				fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+			}
 		}
 	} else {
-		s.ChannelMessageSend(channelID, response)
+		if _, err := s.ChannelMessageSend(channelID, response); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 	}
 }
 
@@ -245,20 +265,26 @@ func sendAIInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCre
 		for index, chunk := range chunks {
 			if index == 0 {
 				// Первый чанк отправляем как основной ответ
-				s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+				if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 					Content: chunk,
-				})
+				}); err != nil {
+					fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+				}
 			} else {
 				// Остальные чанки отправляем как дополнительные сообщения
-				s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+				if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 					Content: chunk,
-				})
+				}); err != nil {
+					fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+				}
 			}
 		}
 	} else {
-		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
+		if _, err := s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: response,
-		})
+		}); err != nil {
+			fmt.Printf("Ошибка отправки сообщения: %v\n", err)
+		}
 	}
 }
 
