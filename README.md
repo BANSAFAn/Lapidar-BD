@@ -202,26 +202,6 @@ To use the YouTube audio playback feature:
 
 [MIT License](LICENSE) © 2025 BANER
 
-## 🔄 CI/CD и Автоматизация
-
-Проект использует GitHub Actions для автоматизации проверки кода и создания релизов:
-
-- **Проверка кода**: Автоматический линтинг и тестирование при каждом пуше и PR
-- **Автоматические релизы**: При создании тега с версией (например, `v1.0.0`) автоматически создаётся релиз с бинарными файлами для Windows, Linux и macOS
-
-Чтобы создать новый релиз:
-1. Создайте и отправьте тег: `git tag v1.0.0 && git push origin v1.0.0`
-2. GitHub Actions автоматически соберёт бинарные файлы и создаст релиз
-
-## 🤝 Contributing
-
-We welcome contributions to Lapidar! If you want to contribute:
-
-1. Fork the repository
-2. Create a branch for your feature (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to your fork (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## 📞 Support
 
