@@ -170,7 +170,7 @@ func handleAIInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Получаем ответ от AI по умолчанию
 	response, err := generateAIResponse("", prompt)
 	if err != nil {
-		s.FollowupMessageCreate(i.Interaction, &discordgo.WebhookParams{
+		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: localization.GetText("ai_error", err.Error()),
 		})
 		return
@@ -194,7 +194,7 @@ func handleAIModelInteraction(s *discordgo.Session, i *discordgo.InteractionCrea
 	// Получаем ответ от указанной модели AI
 	response, err := generateAIResponse(modelName, prompt)
 	if err != nil {
-		s.FollowupMessageCreate(i.Interaction, &discordgo.WebhookParams{
+		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: localization.GetText("ai_error", err.Error()),
 		})
 		return
@@ -245,18 +245,18 @@ func sendAIInteractionResponse(s *discordgo.Session, i *discordgo.InteractionCre
 		for index, chunk := range chunks {
 			if index == 0 {
 				// Первый чанк отправляем как основной ответ
-				s.FollowupMessageCreate(i.Interaction, &discordgo.WebhookParams{
+				s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 					Content: chunk,
 				})
 			} else {
 				// Остальные чанки отправляем как дополнительные сообщения
-				s.FollowupMessageCreate(i.Interaction, &discordgo.WebhookParams{
+				s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 					Content: chunk,
 				})
 			}
 		}
 	} else {
-		s.FollowupMessageCreate(i.Interaction, &discordgo.WebhookParams{
+		s.FollowupMessageCreate(i.Interaction, false, &discordgo.WebhookParams{
 			Content: response,
 		})
 	}

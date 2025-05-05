@@ -118,12 +118,15 @@ func playYouTubeAudio(s *discordgo.Session, vi *VoiceInstance, url, guildID stri
 		return "", fmt.Errorf("не найдены аудио форматы для видео")
 	}
 
-	format := formats.FindByQuality("tiny")
-	if format.Empty() {
+	var format youtube.Format
+	formatPtr := formats.FindByQuality("tiny")
+	if formatPtr == nil {
 		format = formats[0]
+	} else {
+		format = *formatPtr
 	}
 
-	resp, err := client.GetStream(video, &format)
+	resp, _, err := client.GetStream(video, &format)
 	if err != nil {
 		return "", fmt.Errorf("ошибка получения потока: %w", err)
 	}
@@ -215,12 +218,15 @@ func DownloadYouTubeAudio(url string) (string, error) {
 		return "", fmt.Errorf("не найдены аудио форматы для видео")
 	}
 
-	format := formats.FindByQuality("tiny")
-	if format.Empty() {
+	var format youtube.Format
+	formatPtr := formats.FindByQuality("tiny")
+	if formatPtr == nil {
 		format = formats[0]
+	} else {
+		format = *formatPtr
 	}
 
-	resp, err := client.GetStream(video, &format)
+	resp, _, err := client.GetStream(video, &format)
 	if err != nil {
 		return "", fmt.Errorf("ошибка получения потока: %w", err)
 	}
