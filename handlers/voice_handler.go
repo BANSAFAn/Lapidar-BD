@@ -227,7 +227,7 @@ func DownloadYouTubeAudio(url string) (string, error) {
 	}
 
 	// Получаем URL для скачивания напрямую
-	url, err := client.GetStreamURL(video, &format)
+	url, err = client.GetStreamURL(video, &format)
 	if err != nil {
 		return "", fmt.Errorf("ошибка получения URL потока: %w", err)
 	}
