@@ -85,6 +85,12 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		HandlePlayCommand(s, m, args[1:])
 	case "stop":
 		HandleStopCommand(s, m)
+	case "leave":
+		HandleLeaveCommand(s, m)
+	case "nickname", "nick":
+		HandleNicknameCommand(s, m, args[1:])
+	case "dm", "message":
+		HandleDMCommand(s, m, args[1:])
 	}
 }
 

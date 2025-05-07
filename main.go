@@ -12,6 +12,7 @@ import (
 	"discord-bot/db"
 	"discord-bot/handlers"
 	"discord-bot/localization"
+	"discord-bot/web"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -28,6 +29,16 @@ func main() {
 	if err != nil {
 		fmt.Println("Ошибка загрузки конфигурации:", err)
 		return
+	}
+
+	// Запуск веб-интерфейса, если он включен
+	if cfg.WebInterface.Enabled {
+		webServer := web.NewWebServer(cfg)
+		go func() {
+			if err := webServer.Start(); err != nil {
+				fmt.Println("Ошибка запуска веб-интерфейса:", err)
+			}
+		}()
 	}
 
 	// Инициализация базы данных
@@ -63,6 +74,9 @@ func main() {
 	// Регистрация обработчиков событий
 	s.AddHandler(handlers.MessageCreate)
 	s.AddHandler(handlers.ReactionAdd)
+
+	// Добавляем интенты для получения информации о пользователях
+	s.Identify.Intents |= discordgo.IntentsGuildMembers
 
 	// Инициализация слеш-команд AI
 	if err := handlers.InitAICommands(s); err != nil {
