@@ -25,7 +25,7 @@ func HandleNicknameCommand(s *discordgo.Session, m *discordgo.MessageCreate, arg
 	newNickname := args[1]
 
 	// Проверяем права бота на изменение никнеймов
-	guild, err := s.State.Guild(m.GuildID)
+	_, err := s.State.Guild(m.GuildID)
 	if err != nil {
 		if _, err := s.ChannelMessageSend(m.ChannelID, localization.GetText("nickname_guild_error")); err != nil {
 			fmt.Printf("Ошибка отправки сообщения: %v\n", err)

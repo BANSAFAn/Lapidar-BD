@@ -95,7 +95,18 @@ func main() {
 		return
 	}
 
-	fmt.Printf("%s успешно запущен с префиксом '%s'. Нажмите CTRL+C для выхода.\n", cfg.BotName, cfg.Prefix)
+	// Выводим красивое сообщение о запуске бота
+	fmt.Println("\n╔════════════════════════════════════════════════════════════╗")
+	fmt.Println("║                                                        ║")
+	fmt.Printf("║  🤖 %s успешно запущен!                        ║\n", cfg.BotName)
+	fmt.Printf("║  🔧 Префикс команд: '%s'                                ║\n", cfg.Prefix)
+	fmt.Println("║  ✅ Бот полностью функционирует и готов к работе       ║")
+	if cfg.WebInterface.Enabled {
+		fmt.Printf("║  🌐 Панель управления: http://%s:%d                ║\n", cfg.WebInterface.Host, cfg.WebInterface.Port)
+	}
+	fmt.Println("║  ⚠️  Нажмите CTRL+C для завершения работы              ║")
+	fmt.Println("║                                                        ║")
+	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
 	// Ожидание сигнала для завершения
 	sc := make(chan os.Signal, 1)
