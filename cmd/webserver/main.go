@@ -17,9 +17,9 @@ func main() {
 	// Убедимся, что веб-интерфейс включен
 	cfg.WebInterface.Enabled = true
 
-	// Создаем и запускаем веб-сервер
-	webServer := web.NewWebServer(cfg)
-	if err := webServer.Start(); err != nil {
+	// Создаем и запускаем API сервер для новой веб-панели
+	apiServer := web.NewAPIServer(cfg)
+	if err := apiServer.Start(); err != nil {
 		fmt.Println("Ошибка запуска веб-интерфейса:", err)
 	}
 }

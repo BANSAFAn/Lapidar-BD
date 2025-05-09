@@ -33,9 +33,9 @@ func main() {
 
 	// Запуск веб-интерфейса, если он включен
 	if cfg.WebInterface.Enabled {
-		webServer := web.NewWebServer(cfg)
+		apiServer := web.NewAPIServer(cfg)
 		go func() {
-			if err := webServer.Start(); err != nil {
+			if err := apiServer.Start(); err != nil {
 				fmt.Println("Ошибка запуска веб-интерфейса:", err)
 			}
 		}()
