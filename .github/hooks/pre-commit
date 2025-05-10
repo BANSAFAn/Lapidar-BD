@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Pre-commit хук для проверки кода на уязвимости перед коммитом
+
+echo "Запуск проверки кода на уязвимости перед коммитом..."
+
+# Проверка бэкенда на уязвимости
+if command -v gosec >/dev/null 2>&1; then
+  echo "Проверка Go кода на уязвимости..."
+  gosec ./...
+  if [ $? -ne 0 ]; then
+    echo "Ошибка: Обнаружены уязвимости в Go коде. Коммит отменен."
+    exit 1
+  fi
+else
+  echo "Предупреждение: gosec не установлен. Пропуск проверки Go кода."
+  echo "Для установки: go install github.com/securego/gosec/v2/cmd/gosec@latest"
+fi
+
+# Проверка фронтенда на уязвимости
+if [ -d "./web/frontend" ]; then
+  cd ./web/frontend
+  
+  if [ -f "package.json" ]; then
+    echo "Проверка фронтенд кода на уязвимости..."
+    
+    # Запуск скрипта проверки безопасности
+    if [ -f "security-checks.js" ]; then
+      node security-checks.js
+      if [ $? -ne 0 ]; then
+        echo "Ошибка: Обнаружены уязвимости во фронтенд коде. Коммит отменен."
+        exit 1
+      fi
+    else
+      echo "Предупреждение: security-checks.js не найден. Пропуск проверки фронтенда."
+    fi
+  fi
+  
+  cd - > /dev/null
+fi
+
+echo "Проверка кода на уязвимости успешно завершена."
+exit 0
