@@ -21,17 +21,7 @@ import {
   Mic as MicIcon,
   Memory as MemoryIcon,
 } from '@mui/icons-material';
-import axios from 'axios';
-
-// Интерфейс для статистики бота
-interface BotStats {
-  servers: number;
-  users: number;
-  channels: number;
-  commands: number;
-  uptime: string;
-  memoryUsage: string;
-}
+import apiService, { BotStats } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -44,10 +34,20 @@ const Dashboard: React.FC = () => {
     memoryUsage: '0 MB',
   });
 
-  // В реальном приложении здесь будет запрос к API
+  // Загрузка статистики при монтировании компонента
   useEffect(() => {
-    // Имитация загрузки данных
-    const timer = setTimeout(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await apiService.getStats();
+        setStats(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Ошибка при загрузке статистики:', error);
+        setLoading(false);
+      }
+    };
+    
+    fetchStats();
       setStats({
         servers: 15,
         users: 1250,

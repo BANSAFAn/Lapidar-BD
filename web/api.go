@@ -15,6 +15,25 @@ type APIServer struct {
 	addr   string
 }
 
+// BotStats представляет статистику бота
+type BotStats struct {
+	Servers     int    `json:"servers"`
+	Users       int    `json:"users"`
+	Channels    int    `json:"channels"`
+	Commands    int    `json:"commands"`
+	Uptime      string `json:"uptime"`
+	MemoryUsage string `json:"memoryUsage"`
+}
+
+// Command представляет команду бота
+type Command struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Usage       string `json:"usage"`
+	Category    string `json:"category"`
+	Enabled     bool   `json:"enabled"`
+}
+
 // NewAPIServer создает новый экземпляр API сервера
 func NewAPIServer(cfg *config.Config) *APIServer {
 	return &APIServer{
@@ -28,6 +47,9 @@ func (api *APIServer) Start() error {
 	// Настраиваем CORS для разработки фронтенда
 	http.HandleFunc("/api/config", api.handleCORS(api.handleGetConfig))
 	http.HandleFunc("/api/save-config", api.handleCORS(api.handleSaveConfig))
+	http.HandleFunc("/api/stats", api.handleCORS(api.handleGetStats))
+	http.HandleFunc("/api/commands", api.handleCORS(api.handleGetCommands))
+	http.HandleFunc("/api/update-command", api.handleCORS(api.handleUpdateCommand))
 
 	// Обслуживаем статические файлы React приложения
 	fs := http.FileServer(http.Dir("web/frontend/build"))
@@ -109,6 +131,99 @@ func (api *APIServer) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка сохранения конфигурации: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// handleGetStats возвращает статистику бота
+func (api *APIServer) handleGetStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// В реальном приложении здесь будет получение статистики из бота
+	// Пока используем тестовые данные
+	stats := BotStats{
+		Servers:     15,
+		Users:       1250,
+		Channels:    87,
+		Commands:    42,
+		Uptime:      "3 дня 7 часов",
+		MemoryUsage: "128 MB",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleGetCommands возвращает список команд бота
+func (api *APIServer) handleGetCommands(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// В реальном приложении здесь будет получение списка команд из бота
+	// Пока используем тестовые данные
+	commands := []Command{
+		{
+			Name:        "help",
+			Description: "Показывает список доступных команд",
+			Usage:       "!help [команда]",
+			Category:    "Основные",
+			Enabled:     true,
+		},
+		{
+			Name:        "ping",
+			Description: "Проверяет задержку бота",
+			Usage:       "!ping",
+			Category:    "Утилиты",
+			Enabled:     true,
+		},
+		{
+			Name:        "ban",
+			Description: "Банит пользователя на сервере",
+			Usage:       "!ban @пользователь [причина]",
+			Category:    "Модерация",
+			Enabled:     true,
+		},
+		{
+			Name:        "play",
+			Description: "Воспроизводит музыку в голосовом канале",
+			Usage:       "!play [ссылка или название]",
+			Category:    "Музыка",
+			Enabled:     true,
+		},
+		{
+			Name:        "stats",
+			Description: "Показывает статистику бота",
+			Usage:       "!stats",
+			Category:    "Информация",
+			Enabled:     true,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(commands)
+}
+
+// handleUpdateCommand обновляет статус команды
+func (api *APIServer) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var command Command
+	if err := json.NewDecoder(r.Body).Decode(&command); err != nil {
+		http.Error(w, "Ошибка декодирования JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// В реальном приложении здесь будет обновление статуса команды в боте
+	// Пока просто возвращаем успешный ответ
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})

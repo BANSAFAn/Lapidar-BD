@@ -5,6 +5,7 @@ import { Box, Container } from '@mui/material';
 // Компоненты
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
+import Commands from './pages/Commands';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 
@@ -18,6 +19,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/commands" element={<Commands />} />
           </Routes>
         </Container>
       </Box>

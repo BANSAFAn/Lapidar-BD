@@ -111,19 +111,18 @@ const Settings: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    
+    setError(null);
+
     try {
-      // В реальном приложении здесь будет запрос к API
-      // await axios.post('/api/save-config', config);
-      
-      // Имитация сохранения данных
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await apiService.saveConfig(config);
+      setSaving(false);
       setSuccess(true);
-      setSaving(false);
+      
+      // Скрываем сообщение об успехе через 3 секунды
+      setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      setError('Ошибка сохранения конфигурации');
       setSaving(false);
+      setError('Ошибка сохранения конфигурации');
     }
   };
 
