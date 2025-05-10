@@ -127,7 +127,7 @@ func (api *APIServer) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	api.config.WebInterface = newConfig.WebInterface
 
 	// Сохраняем конфигурацию в файл
-	if err := config.Save(api.config); err != nil {
+	if err := config.SaveConfig(api.config); err != nil {
 		http.Error(w, "Ошибка сохранения конфигурации: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

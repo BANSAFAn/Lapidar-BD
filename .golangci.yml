@@ -13,7 +13,7 @@ output:
   # Формат вывода: colored-line-number|line-number|json|tab|checkstyle|code-climate|junit-xml|github-actions
   # Устаревшая опция format заменена на formats
   formats:
-    - colored-line-number
+    - format: colored-line-number
   # Печатать строки кода с проблемами
   print-issued-lines: true
   # Печатать линтер, который нашел проблему
