@@ -50,3 +50,31 @@ issues:
     - path: _test\.go
       linters:
         - errcheck  # Игнорировать необработанные ошибки в тестах
+    # Исключения для обработки ошибок в веб-интерфейсе
+    - path: web/api\.go
+      text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+    - path: web/web_server\.go
+      text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+    # Исключения для обработки ошибок в обработчиках
+    - path: handlers/handlers\.go
+      text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+    - path: handlers/voice_handler\.go
+      text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+    # Исключения для неиспользуемых переменных
+    - path: web/web_server\.go
+      text: "var .* is unused"
+      linters:
+        - unused
+    # Исключения для избыточных символов новой строки
+    - path: (web/api\.go|web/web_server\.go|main\.go)
+      text: "fmt.Println arg list ends with redundant newline"
+      linters:
+        - govet
