@@ -114,6 +114,7 @@ jobs:
         working-directory: ./web/frontend
         run: |
           npm install
+          npm run security-check || true
           npm run build
 
       - name: Archive production artifacts
@@ -147,6 +148,7 @@ jobs:
         working-directory: ./web/frontend
         run: |
           npm install
+          npm run security-check || true
           npm run build
 
       - name: Build for multiple platforms
@@ -161,10 +163,18 @@ jobs:
               output_name+='.exe'
             fi
             env GOOS=$GOOS GOARCH=$GOARCH go build -o $output_name -v ./main.go
+            # Создаем структуру директорий для релиза
+            mkdir -p dist/$GOOS-$GOARCH/web/frontend
+            mkdir -p dist/$GOOS-$GOARCH/config
+            mkdir -p dist/$GOOS-$GOARCH/data
             # Копируем собранный фронтенд в архив
-            mkdir -p dist/$GOOS-$GOARCH/web
-            cp -r web/frontend/build dist/$GOOS-$GOARCH/web/
-            cp -r config.json dist/$GOOS-$GOARCH/
+            cp -r web/frontend/build dist/$GOOS-$GOARCH/web/frontend/
+            cp -r web/static dist/$GOOS-$GOARCH/web/
+            cp -r web/templates dist/$GOOS-$GOARCH/web/
+            cp config.json dist/$GOOS-$GOARCH/
+            # Создаем пустой файл admin.json в директории config
+            echo '{}' > dist/$GOOS-$GOARCH/config/admin.json
+            # Создаем архив
             zip -r discord-bot-$GOOS-$GOARCH.zip $output_name dist/$GOOS-$GOARCH/
           done
 
