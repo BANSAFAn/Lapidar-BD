@@ -163,19 +163,32 @@ jobs:
               output_name+='.exe'
             fi
             env GOOS=$GOOS GOARCH=$GOARCH go build -o $output_name -v ./main.go
+            
             # Создаем структуру директорий для релиза
-            mkdir -p dist/$GOOS-$GOARCH/web/frontend
+            mkdir -p dist/$GOOS-$GOARCH/web/frontend/build
+            mkdir -p dist/$GOOS-$GOARCH/web/static
+            mkdir -p dist/$GOOS-$GOARCH/web/templates
             mkdir -p dist/$GOOS-$GOARCH/config
             mkdir -p dist/$GOOS-$GOARCH/data
+            
             # Копируем собранный фронтенд в архив
-            cp -r web/frontend/build dist/$GOOS-$GOARCH/web/frontend/
-            cp -r web/static dist/$GOOS-$GOARCH/web/
-            cp -r web/templates dist/$GOOS-$GOARCH/web/
-            cp config.json dist/$GOOS-$GOARCH/
+            cp -r web/frontend/build/* dist/$GOOS-$GOARCH/web/frontend/build/
+            cp -r web/static/* dist/$GOOS-$GOARCH/web/static/ || true
+            cp -r web/templates/* dist/$GOOS-$GOARCH/web/templates/ || true
+            
+            # Копируем конфигурационные файлы
+            cp config.json dist/$GOOS-$GOARCH/ || echo '{"token":"","prefix":"/","web_interface":{"enabled":true,"host":"localhost","port":8080}}' > dist/$GOOS-$GOARCH/config.json
+            
             # Создаем пустой файл admin.json в директории config
-            echo '{}' > dist/$GOOS-$GOARCH/config/admin.json
+            echo '{"email":"admin@example.com","password":"$2a$10$XgXLGQAJAYv8CKJE2aJzSO0CT6.uOmOEy0Oj.1iP.hO2JJw2aN12O","secret":"JBSWY3DPEHPK3PXP"}' > dist/$GOOS-$GOARCH/config/admin.json
+            
+            # Копируем исполняемый файл в директорию релиза
+            cp $output_name dist/$GOOS-$GOARCH/
+            
             # Создаем архив
-            zip -r discord-bot-$GOOS-$GOARCH.zip $output_name dist/$GOOS-$GOARCH/
+            cd dist
+            zip -r ../discord-bot-$GOOS-$GOARCH.zip $GOOS-$GOARCH/
+            cd ..
           done
 
       - name: Create Release
