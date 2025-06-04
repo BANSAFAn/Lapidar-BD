@@ -7,9 +7,10 @@ import (
 
 // WebInterfaceConfig содержит настройки веб-интерфейса
 type WebInterfaceConfig struct {
-	Enabled bool   `json:"enabled"` // Включен ли веб-интерфейс
-	Host    string `json:"host"`    // Хост для веб-интерфейса
-	Port    int    `json:"port"`    // Порт для веб-интерфейса
+	Enabled  bool   `json:"enabled"`   // Включен ли веб-интерфейс
+	Host     string `json:"host"`      // Хост для веб-интерфейса
+	Port     int    `json:"port"`      // Основной порт для веб-интерфейса
+	AltPorts []int  `json:"alt_ports"` // Альтернативные порты для веб-интерфейса
 }
 
 // Config contains bot settings
@@ -41,9 +42,10 @@ func Load() (*Config, error) {
 				ReportThreshold: 3,
 				DefaultLanguage: "ru",
 				WebInterface: WebInterfaceConfig{
-					Enabled: true,
-					Host:    "localhost",
-					Port:    8080,
+					Enabled:  true,
+					Host:     "localhost",
+					Port:     8080,
+					AltPorts: []int{3000, 8000},
 				},
 			}
 
@@ -63,6 +65,7 @@ func Load() (*Config, error) {
 	config.WebInterface.Enabled = true
 	config.WebInterface.Host = "localhost"
 	config.WebInterface.Port = 8080
+	config.WebInterface.AltPorts = []int{3000, 8000}
 
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(config)

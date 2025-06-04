@@ -9,10 +9,11 @@ import (
 	"discord-bot/config"
 )
 
-// APIServer представляет API сервер для взаимодействия с фронтендом
+// APIServer представляет API сервер для управления ботом
 type APIServer struct {
-	config *config.Config
-	addr   string
+	config   *config.Config
+	mainAddr string
+	altAddrs []string
 }
 
 // BotStats представляет статистику бота
@@ -36,47 +37,78 @@ type Command struct {
 
 // NewAPIServer создает новый экземпляр API сервера
 func NewAPIServer(cfg *config.Config) *APIServer {
+	// Создаем основной адрес
+	mainAddr := fmt.Sprintf("%s:%d", cfg.WebInterface.Host, cfg.WebInterface.Port)
+
+	// Создаем альтернативные адреса
+	altAddrs := make([]string, len(cfg.WebInterface.AltPorts))
+	for i, port := range cfg.WebInterface.AltPorts {
+		altAddrs[i] = fmt.Sprintf("%s:%d", cfg.WebInterface.Host, port)
+	}
+
 	return &APIServer{
-		config: cfg,
-		addr:   fmt.Sprintf("%s:%d", cfg.WebInterface.Host, cfg.WebInterface.Port),
+		config:   cfg,
+		mainAddr: mainAddr,
+		altAddrs: altAddrs,
 	}
 }
 
-// Start запускает API сервер
+// Start запускает API сервер на нескольких портах
 func (api *APIServer) Start() error {
-	// Настраиваем CORS для разработки фронтенда
-	http.HandleFunc("/api/config", api.handleCORS(api.handleGetConfig))
-	http.HandleFunc("/api/save-config", api.handleCORS(api.handleSaveConfig))
-	http.HandleFunc("/api/stats", api.handleCORS(api.handleGetStats))
-	http.HandleFunc("/api/commands", api.handleCORS(api.handleGetCommands))
-	http.HandleFunc("/api/update-command", api.handleCORS(api.handleUpdateCommand))
+	// Создаем роутер
+	r := mux.NewRouter()
 
-	// Обслуживаем статические файлы React приложения
-	fs := http.FileServer(http.Dir("web/frontend/build"))
-	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Для API запросов не используем файловый сервер
-		if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
-			return
-		}
+	// Настраиваем CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
 
-		// Для всех остальных запросов отдаем index.html
-		if r.URL.Path != "/" && !FileExists("web/frontend/build"+r.URL.Path) {
-			http.ServeFile(w, r, "web/frontend/build/index.html")
-			return
-		}
-		fs.ServeHTTP(w, r)
-	}))
+	// Применяем CORS middleware
+	handler := c.Handler(r)
+
+	// Регистрируем обработчики API
+	r.HandleFunc("/api/config", api.handleGetConfig).Methods("GET")
+	r.HandleFunc("/api/config", api.handleSaveConfig).Methods("POST")
+	r.HandleFunc("/api/stats", api.handleGetStats).Methods("GET")
+	r.HandleFunc("/api/commands", api.handleGetCommands).Methods("GET")
+	r.HandleFunc("/api/commands", api.handleUpdateCommands).Methods("POST")
+
+	// Регистрируем обработчики аутентификации
+	r.HandleFunc("/api/login", handleLogin).Methods("POST")
+	r.HandleFunc("/api/verify-totp", handleVerifyTOTP).Methods("POST")
+
+	// Обслуживаем фронтенд
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("web/frontend/build")))
 
 	// Выводим сообщение о запуске API сервера
-	fmt.Println("\n╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║                                                        ║")
-	fmt.Println("║  🌐 Веб-панель управления Discord ботом запущена!     ║")
-	fmt.Printf("║  📌 Адрес: http://%s                           ║\n", api.addr)
-	fmt.Println("║  ⚙️  Откройте эту ссылку в браузере для настройки бота ║")
-	fmt.Println("║                                                        ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
+	fmt.Printf("API сервер запущен на http://%s (основной)\n", api.mainAddr)
+	for i, addr := range api.altAddrs {
+		fmt.Printf("API сервер запущен на http://%s (альтернативный %d)\n", addr, i+1)
+	}
 
-	return http.ListenAndServe(api.addr, nil)
+	// Запускаем основной сервер в отдельной горутине
+	go func() {
+		err := http.ListenAndServe(api.mainAddr, handler)
+		if err != nil {
+			fmt.Printf("Ошибка запуска основного API сервера на %s: %v\n", api.mainAddr, err)
+		}
+	}()
+
+	// Запускаем альтернативные серверы в отдельных горутинах
+	for _, addr := range api.altAddrs {
+		go func(address string) {
+			err := http.ListenAndServe(address, handler)
+			if err != nil {
+				fmt.Printf("Ошибка запуска альтернативного API сервера на %s: %v\n", address, err)
+			}
+		}(addr)
+	}
+
+	// Ждем бесконечно, чтобы горутины могли работать
+	select {}
 }
 
 // handleCORS добавляет CORS заголовки к ответам

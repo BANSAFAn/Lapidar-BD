@@ -350,21 +350,60 @@ func (api *APIServer) handleSetupTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateAPIServerForAuth обновляет API сервер для поддержки аутентификации
+// UpdateAPIServerForAuth обновляет API сервер для поддержки аутентификации
+// Этот метод вызывается после создания API сервера, но до его запуска
 func (api *APIServer) UpdateAPIServerForAuth() {
-	// Добавляем обработчики для аутентификации
-	http.HandleFunc("/api/login", api.handleCORS(api.handleLogin))
-	http.HandleFunc("/api/verify-totp", api.handleCORS(api.handleVerifyTOTP))
-	http.HandleFunc("/api/logout", api.handleCORS(AuthMiddleware(api.handleLogout)))
-	http.HandleFunc("/api/login-logs", api.handleCORS(AuthMiddleware(api.handleGetLoginLogs)))
-	http.HandleFunc("/api/setup-totp", api.handleCORS(AuthMiddleware(api.handleSetupTOTP)))
+	// Создаем роутер
+	r := mux.NewRouter()
+
+	// Настраиваем CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
+	// Применяем CORS middleware
+	handler := c.Handler(r)
+
+	// Регистрируем обработчики аутентификации (без защиты)
+	r.HandleFunc("/api/login", api.handleLogin).Methods("POST")
+	r.HandleFunc("/api/verify-totp", api.handleVerifyTOTP).Methods("POST")
+
+	// Регистрируем защищенные обработчики
+	r.HandleFunc("/api/logout", AuthMiddleware(api.handleLogout)).Methods("POST")
+	r.HandleFunc("/api/login-logs", AuthMiddleware(api.handleGetLoginLogs)).Methods("GET")
+	r.HandleFunc("/api/setup-totp", AuthMiddleware(api.handleSetupTOTP)).Methods("GET")
 
 	// Защищаем API конфигурации
-	http.HandleFunc("/api/config", api.handleCORS(AuthMiddleware(api.handleGetConfig)))
-	http.HandleFunc("/api/save-config", api.handleCORS(AuthMiddleware(api.handleSaveConfig)))
-	http.HandleFunc("/api/stats", api.handleCORS(AuthMiddleware(api.handleGetStats)))
-	http.HandleFunc("/api/commands", api.handleCORS(AuthMiddleware(api.handleGetCommands)))
-	http.HandleFunc("/api/update-command", api.handleCORS(AuthMiddleware(api.handleUpdateCommand)))
+	r.HandleFunc("/api/config", AuthMiddleware(api.handleGetConfig)).Methods("GET")
+	r.HandleFunc("/api/config", AuthMiddleware(api.handleSaveConfig)).Methods("POST")
+	r.HandleFunc("/api/stats", AuthMiddleware(api.handleGetStats)).Methods("GET")
+	r.HandleFunc("/api/commands", AuthMiddleware(api.handleGetCommands)).Methods("GET")
+	r.HandleFunc("/api/commands", AuthMiddleware(api.handleUpdateCommands)).Methods("POST")
+
+	// Обслуживаем фронтенд
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir("web/frontend/build")))
 
 	// Выводим сообщение о включении аутентификации
 	fmt.Println("✅ Двухфакторная аутентификация для веб-панели включена")
+
+	// Запускаем основной сервер в отдельной горутине
+	go func() {
+		err := http.ListenAndServe(api.mainAddr, handler)
+		if err != nil {
+			fmt.Printf("Ошибка запуска основного API сервера на %s: %v\n", api.mainAddr, err)
+		}
+	}()
+
+	// Запускаем альтернативные серверы в отдельных горутинах
+	for _, addr := range api.altAddrs {
+		go func(address string) {
+			err := http.ListenAndServe(address, handler)
+			if err != nil {
+				fmt.Printf("Ошибка запуска альтернативного API сервера на %s: %v\n", address, err)
+			}
+		}(addr)
+	}
 }

@@ -20,7 +20,8 @@ var staticFS embed.FS
 type WebServer struct {
 	templates *template.Template
 	config    *config.Config
-	addr      string
+	mainAddr  string
+	altAddrs  []string
 }
 
 // NewWebServer создает новый экземпляр веб-сервера
@@ -42,34 +43,72 @@ func NewWebServer(cfg *config.Config) *WebServer {
 	// Загружаем шаблоны
 	tmpl := template.Must(template.ParseGlob("web/templates/*.html"))
 
+	// Создаем основной адрес
+	mainAddr := fmt.Sprintf("%s:%d", cfg.WebInterface.Host, cfg.WebInterface.Port)
+
+	// Создаем альтернативные адреса
+	altAddrs := make([]string, len(cfg.WebInterface.AltPorts))
+	for i, port := range cfg.WebInterface.AltPorts {
+		altAddrs[i] = fmt.Sprintf("%s:%d", cfg.WebInterface.Host, port)
+	}
+
 	return &WebServer{
 		templates: tmpl,
 		config:    cfg,
-		addr:      fmt.Sprintf("%s:%d", cfg.WebInterface.Host, cfg.WebInterface.Port),
+		mainAddr:  mainAddr,
+		altAddrs:  altAddrs,
 	}
 }
 
-// Start запускает веб-сервер
+// Start запускает веб-сервер на нескольких портах
 func (ws *WebServer) Start() error {
+	// Создаем новый мультиплексор для обработчиков
+	mux := http.NewServeMux()
+
 	// Обработчик для главной страницы
-	http.HandleFunc("/", ws.handleIndex)
+	mux.HandleFunc("/", ws.handleIndex)
 
 	// Обработчик для статических файлов
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
 
 	// Обработчик для сохранения настроек
-	http.HandleFunc("/save", ws.handleSaveSettings)
+	mux.HandleFunc("/save", ws.handleSaveSettings)
 
 	// Выводим красивое сообщение о запуске веб-интерфейса
 	fmt.Println("\n╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                                                        ║")
 	fmt.Println("║  🌐 Веб-панель управления Discord ботом запущена!     ║")
-	fmt.Printf("║  📌 Адрес: http://%s                           ║\n", ws.addr)
-	fmt.Println("║  ⚙️  Откройте эту ссылку в браузере для настройки бота ║")
+	fmt.Printf("║  📌 Основной адрес: http://%s                    ║\n", ws.mainAddr)
+
+	// Выводим альтернативные адреса
+	for i, addr := range ws.altAddrs {
+		fmt.Printf("║  📌 Альтернативный адрес %d: http://%s          ║\n", i+1, addr)
+	}
+
+	fmt.Println("║  ⚙️  Откройте любую из этих ссылок для настройки бота   ║")
 	fmt.Println("║                                                        ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝\n")
 
-	return http.ListenAndServe(ws.addr, nil)
+	// Запускаем основной сервер в отдельной горутине
+	go func() {
+		err := http.ListenAndServe(ws.mainAddr, mux)
+		if err != nil {
+			fmt.Printf("Ошибка запуска основного сервера на %s: %v\n", ws.mainAddr, err)
+		}
+	}()
+
+	// Запускаем альтернативные серверы в отдельных горутинах
+	for _, addr := range ws.altAddrs {
+		go func(address string) {
+			err := http.ListenAndServe(address, mux)
+			if err != nil {
+				fmt.Printf("Ошибка запуска альтернативного сервера на %s: %v\n", address, err)
+			}
+		}(addr)
+	}
+
+	// Ждем бесконечно, чтобы горутины могли работать
+	select {}
 }
 
 // handleIndex обрабатывает запрос на главную страницу
