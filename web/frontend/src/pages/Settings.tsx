@@ -18,8 +18,18 @@ import {
   Snackbar,
   Typography,
   CircularProgress,
+  Chip,
+  IconButton,
+  Paper,
+  Stack,
+  Tooltip,
 } from '@mui/material';
-import { Save as SaveIcon } from '@mui/icons-material';
+import { 
+  Save as SaveIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Info as InfoIcon,
+} from '@mui/icons-material';
 import axios from 'axios';
 
 // Интерфейс для конфигурации бота
@@ -32,6 +42,7 @@ interface BotConfig {
     Enabled: boolean;
     Host: string;
     Port: number;
+    AltPorts: number[];
   };
 }
 
@@ -40,6 +51,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newPort, setNewPort] = useState<string>('');
   const [config, setConfig] = useState<BotConfig>({
     Token: '',
     Prefix: '!',
@@ -49,6 +61,7 @@ const Settings: React.FC = () => {
       Enabled: true,
       Host: 'localhost',
       Port: 8080,
+      AltPorts: [3000, 8000],
     },
   });
 
@@ -71,6 +84,7 @@ const Settings: React.FC = () => {
               Enabled: true,
               Host: 'localhost',
               Port: 8080,
+              AltPorts: [3000, 8000],
             },
           });
           setLoading(false);
@@ -107,6 +121,51 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Обработчик добавления альтернативного порта
+  const handleAddAltPort = () => {
+    if (!newPort || isNaN(Number(newPort))) return;
+    
+    const portNumber = parseInt(newPort, 10);
+    if (portNumber <= 0 || portNumber > 65535) {
+      setError('Порт должен быть в диапазоне от 1 до 65535');
+      return;
+    }
+    
+    // Проверяем, не существует ли уже такой порт
+    if (config.WebInterface.AltPorts.includes(portNumber)) {
+      setError('Этот порт уже добавлен в список альтернативных');
+      return;
+    }
+    
+    // Проверяем, не совпадает ли с основным портом
+    if (portNumber === Number(config.WebInterface.Port)) {
+      setError('Этот порт уже используется как основной');
+      return;
+    }
+    
+    const updatedAltPorts = [...config.WebInterface.AltPorts, portNumber];
+    setConfig({
+      ...config,
+      WebInterface: {
+        ...config.WebInterface,
+        AltPorts: updatedAltPorts,
+      },
+    });
+    setNewPort('');
+  };
+
+  // Обработчик удаления альтернативного порта
+  const handleRemoveAltPort = (port: number) => {
+    const updatedAltPorts = config.WebInterface.AltPorts.filter(p => p !== port);
+    setConfig({
+      ...config,
+      WebInterface: {
+        ...config.WebInterface,
+        AltPorts: updatedAltPorts,
+      },
+    });
+  };
+
   // Обработчик отправки формы
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,26 +193,68 @@ const Settings: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <CircularProgress />
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
+        <CircularProgress size={40} thickness={4} />
+        <Typography variant="h6" sx={{ ml: 2 }}>
+          Загрузка настроек...
+        </Typography>
       </Box>
     );
   }
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Настройки бота
-      </Typography>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 3,
+        borderBottom: '1px solid #40444b',
+        pb: 2
+      }}>
+        <Typography variant="h4" sx={{ fontWeight: 600, color: '#fff' }}>
+          Настройки бота
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<SaveIcon />}
+          onClick={handleSubmit}
+          disabled={saving}
+          sx={{ 
+            minWidth: 150,
+            py: 1,
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          {saving ? <CircularProgress size={24} color="inherit" /> : 'Сохранить'}
+        </Button>
+      </Box>
       
       <form onSubmit={handleSubmit}>
         <Grid container spacing={3}>
           {/* Основные настройки */}
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#2f3136' }}>
-              <CardHeader title="Основные настройки" />
+            <Card sx={{ 
+              backgroundColor: '#2f3136',
+              boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <CardHeader 
+                title="Основные настройки" 
+                titleTypographyProps={{ fontWeight: 600 }}
+                sx={{ 
+                  backgroundColor: 'rgba(114, 137, 218, 0.1)',
+                  borderBottom: '1px solid #40444b',
+                  py: 2
+                }}
+              />
               <Divider sx={{ backgroundColor: '#40444b' }} />
-              <CardContent>
+              <CardContent sx={{ flexGrow: 1 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
                     <TextField
@@ -216,23 +317,61 @@ const Settings: React.FC = () => {
           
           {/* Настройки веб-интерфейса */}
           <Grid item xs={12} md={6}>
-            <Card sx={{ backgroundColor: '#2f3136' }}>
-              <CardHeader title="Настройки веб-интерфейса" />
+            <Card sx={{ 
+              backgroundColor: '#2f3136',
+              boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <CardHeader 
+                title="Настройки веб-интерфейса" 
+                titleTypographyProps={{ fontWeight: 600 }}
+                sx={{ 
+                  backgroundColor: 'rgba(114, 137, 218, 0.1)',
+                  borderBottom: '1px solid #40444b',
+                  py: 2
+                }}
+              />
               <Divider sx={{ backgroundColor: '#40444b' }} />
-              <CardContent>
+              <CardContent sx={{ flexGrow: 1 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={config.WebInterface.Enabled}
-                          onChange={handleChange}
-                          name="WebInterface.Enabled"
-                          color="primary"
-                        />
-                      }
-                      label="Включить веб-интерфейс"
-                    />
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 2, 
+                        backgroundColor: 'rgba(47, 49, 54, 0.6)', 
+                        borderRadius: '8px',
+                        mb: 2,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                          Веб-интерфейс
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Включить или отключить веб-интерфейс администратора
+                        </Typography>
+                      </Box>
+                      <Switch
+                        checked={config.WebInterface.Enabled}
+                        onChange={handleChange}
+                        name="WebInterface.Enabled"
+                        color="primary"
+                        sx={{ ml: 2 }}
+                      />
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" sx={{ mt: 1, mb: 1, fontWeight: 500 }}>
+                      Настройки подключения
+                    </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
@@ -244,53 +383,201 @@ const Settings: React.FC = () => {
                       margin="normal"
                       disabled={!config.WebInterface.Enabled}
                       helperText="Хост для веб-интерфейса"
+                      InputProps={{
+                        sx: { borderRadius: '8px' }
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '&.Mui-disabled': {
+                            backgroundColor: 'rgba(47, 49, 54, 0.4)',
+                          }
+                        }
+                      }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label="Порт"
+                      label="Основной порт"
                       name="WebInterface.Port"
                       value={config.WebInterface.Port}
                       onChange={handleChange}
                       margin="normal"
                       type="number"
                       disabled={!config.WebInterface.Enabled}
-                      helperText="Порт для веб-интерфейса"
+                      helperText="Основной порт для веб-интерфейса"
+                      InputProps={{
+                        sx: { borderRadius: '8px' }
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '&.Mui-disabled': {
+                            backgroundColor: 'rgba(47, 49, 54, 0.4)',
+                          }
+                        }
+                      }}
                     />
+                  </Grid>
+                  
+                  {/* Альтернативные порты */}
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" sx={{ mt: 3, mb: 1, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+                      Альтернативные порты
+                      <Tooltip 
+                        title="Дополнительные порты, на которых будет доступен веб-интерфейс. Полезно, если основной порт заблокирован." 
+                        arrow
+                        placement="top"
+                      >
+                        <IconButton size="small" sx={{ ml: 0.5, color: 'text.secondary' }}>
+                          <InfoIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Typography>
+                    
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 2, 
+                        backgroundColor: 'rgba(47, 49, 54, 0.6)', 
+                        borderRadius: '8px',
+                        mb: 2
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                        <TextField
+                          label="Новый порт"
+                          value={newPort}
+                          onChange={(e) => setNewPort(e.target.value)}
+                          type="number"
+                          size="small"
+                          disabled={!config.WebInterface.Enabled}
+                          sx={{ 
+                            mr: 1, 
+                            width: '150px',
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '8px',
+                              '&.Mui-disabled': {
+                                backgroundColor: 'rgba(47, 49, 54, 0.4)',
+                              }
+                            }
+                          }}
+                          placeholder="Введите порт"
+                        />
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleAddAltPort}
+                          disabled={!config.WebInterface.Enabled || !newPort}
+                          startIcon={<AddIcon />}
+                          size="small"
+                          sx={{ 
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            fontWeight: 500,
+                            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
+                            '&:hover': {
+                              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)'
+                            },
+                            '&.Mui-disabled': {
+                              backgroundColor: 'rgba(114, 137, 218, 0.3)'
+                            }
+                          }}
+                        >
+                          Добавить
+                        </Button>
+                      </Box>
+                    </Paper>
+                    
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 2, 
+                        backgroundColor: 'rgba(47, 49, 54, 0.6)', 
+                        borderRadius: '8px',
+                        minHeight: '60px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 1,
+                        alignItems: 'center'
+                      }}
+                    >
+                      {config.WebInterface.AltPorts.length > 0 ? (
+                        config.WebInterface.AltPorts.map((port) => (
+                          <Chip
+                            key={port}
+                            label={port}
+                            color="primary"
+                            disabled={!config.WebInterface.Enabled}
+                            onDelete={() => handleRemoveAltPort(port)}
+                            deleteIcon={<DeleteIcon fontSize="small" />}
+                            sx={{ 
+                              m: 0.5, 
+                              borderRadius: '6px',
+                              '&:hover': {
+                                backgroundColor: 'rgba(114, 137, 218, 0.25)'
+                              },
+                              '&.Mui-disabled': {
+                                opacity: 0.6,
+                                backgroundColor: 'rgba(47, 49, 54, 0.4)'
+                              }
+                            }}
+                          />
+                        ))
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          Нет альтернативных портов
+                        </Typography>
+                      )}
+                    </Paper>
                   </Grid>
                 </Grid>
               </CardContent>
             </Card>
           </Grid>
           
-          {/* Кнопка сохранения */}
-          <Grid item xs={12}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                startIcon={<SaveIcon />}
-                disabled={saving}
-                sx={{ minWidth: 150 }}
-              >
-                {saving ? <CircularProgress size={24} /> : 'Сохранить'}
-              </Button>
-            </Box>
-          </Grid>
+          {/* Конец формы */}
         </Grid>
       </form>
       
       {/* Уведомления */}
-      <Snackbar open={success} autoHideDuration={6000} onClose={handleCloseAlert}>
-        <Alert onClose={handleCloseAlert} severity="success" sx={{ width: '100%' }}>
+      <Snackbar 
+        open={success} 
+        autoHideDuration={4000} 
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseAlert} 
+          severity="success" 
+          variant="filled"
+          elevation={6}
+          sx={{ 
+            width: '100%',
+            fontWeight: 500,
+            '& .MuiAlert-icon': { fontSize: '1.2rem' }
+          }}
+        >
           Настройки успешно сохранены!
         </Alert>
       </Snackbar>
       
-      <Snackbar open={!!error} autoHideDuration={6000} onClose={handleCloseAlert}>
-        <Alert onClose={handleCloseAlert} severity="error" sx={{ width: '100%' }}>
+      <Snackbar 
+        open={!!error} 
+        autoHideDuration={6000} 
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseAlert} 
+          severity="error" 
+          variant="filled"
+          elevation={6}
+          sx={{ 
+            width: '100%',
+            fontWeight: 500,
+            '& .MuiAlert-icon': { fontSize: '1.2rem' }
+          }}
+        >
           {error}
         </Alert>
       </Snackbar>
