@@ -30,6 +30,16 @@ type LoginLog struct {
 	Message   string    `json:"message"`
 }
 
+// Структура для хранения информации о попытках входа
+type LoginAttempt struct {
+	IP        string    `json:"ip"`
+	Email     string    `json:"email"`
+	Attempts  int       `json:"attempts"`
+	LastTry   time.Time `json:"last_try"`
+	Blocked   bool      `json:"blocked"`
+	BlockedAt time.Time `json:"blocked_at"`
+}
+
 // InitAuthTables инициализирует таблицы для аутентификации
 func InitAuthTables() error {
 	// Таблица для хранения сессий
@@ -57,6 +67,23 @@ func InitAuthTables() error {
 			timestamp DATETIME NOT NULL,
 			success BOOLEAN NOT NULL,
 			message TEXT
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Таблица для хранения попыток входа (для защиты от брутфорса)
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS login_attempts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ip TEXT NOT NULL,
+			email TEXT NOT NULL,
+			attempts INTEGER NOT NULL DEFAULT 0,
+			last_try DATETIME NOT NULL,
+			blocked BOOLEAN NOT NULL DEFAULT 0,
+			blocked_at DATETIME,
+			UNIQUE(ip, email)
 		)
 	`)
 	if err != nil {
@@ -231,4 +258,146 @@ func GenerateRandomString(length int) string {
 // RandomInt генерирует случайное число в заданном диапазоне
 func RandomInt(min, max int) int {
 	return min + time.Now().Nanosecond()%(max-min+1)
+}
+
+// Константы для настройки защиты от брутфорса
+const (
+	MAX_LOGIN_ATTEMPTS = 5         // Максимальное количество попыток входа
+	BLOCK_DURATION     = time.Minute * 15 // Длительность блокировки
+	ATTEMPT_RESET_TIME = time.Hour * 1   // Время сброса счетчика попыток
+)
+
+// AddLoginAttempt добавляет попытку входа и проверяет, не превышен ли лимит
+func AddLoginAttempt(ip, email string) (bool, error) {
+	// Получаем текущее время
+	now := time.Now()
+
+	// Проверяем, существует ли запись для данного IP и email
+	var id int64
+	var attempts int
+	var lastTry time.Time
+	var blocked bool
+	var blockedAt time.Time
+
+	err := DB.QueryRow(
+		"SELECT id, attempts, last_try, blocked, blocked_at FROM login_attempts WHERE ip = ? AND email = ?",
+		ip, email,
+	).Scan(&id, &attempts, &lastTry, &blocked, &blockedAt)
+
+	// Если запись не найдена, создаем новую
+	if err == sql.ErrNoRows {
+		_, err := DB.Exec(
+			"INSERT INTO login_attempts (ip, email, attempts, last_try, blocked) VALUES (?, ?, 1, ?, 0)",
+			ip, email, now,
+		)
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	// Если пользователь заблокирован, проверяем, не истекло ли время блокировки
+	if blocked {
+		if now.Sub(blockedAt) < BLOCK_DURATION {
+			// Блокировка еще действует
+			return true, nil
+		} else {
+			// Время блокировки истекло, сбрасываем счетчик
+			_, err := DB.Exec(
+				"UPDATE login_attempts SET attempts = 1, last_try = ?, blocked = 0, blocked_at = NULL WHERE id = ?",
+				now, id,
+			)
+			if err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+	}
+
+	// Если прошло достаточно времени с последней попытки, сбрасываем счетчик
+	if now.Sub(lastTry) > ATTEMPT_RESET_TIME {
+		_, err := DB.Exec(
+			"UPDATE login_attempts SET attempts = 1, last_try = ? WHERE id = ?",
+			now, id,
+		)
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	// Увеличиваем счетчик попыток
+	attempts++
+
+	// Если превышен лимит попыток, блокируем пользователя
+	if attempts >= MAX_LOGIN_ATTEMPTS {
+		_, err := DB.Exec(
+			"UPDATE login_attempts SET attempts = ?, last_try = ?, blocked = 1, blocked_at = ? WHERE id = ?",
+			attempts, now, now, id,
+		)
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	// Обновляем счетчик попыток
+	_, err = DB.Exec(
+		"UPDATE login_attempts SET attempts = ?, last_try = ? WHERE id = ?",
+		attempts, now, id,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+// IsLoginBlocked проверяет, заблокирован ли вход для данного IP и email
+func IsLoginBlocked(ip, email string) (bool, error) {
+	var blocked bool
+	var blockedAt time.Time
+
+	err := DB.QueryRow(
+		"SELECT blocked, blocked_at FROM login_attempts WHERE ip = ? AND email = ?",
+		ip, email,
+	).Scan(&blocked, &blockedAt)
+
+	if err == sql.ErrNoRows {
+		// Если записи нет, значит пользователь не заблокирован
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	// Если пользователь заблокирован, проверяем, не истекло ли время блокировки
+	if blocked {
+		if time.Now().Sub(blockedAt) < BLOCK_DURATION {
+			// Блокировка еще действует
+			return true, nil
+		} else {
+			// Время блокировки истекло, сбрасываем блокировку
+			_, err := DB.Exec(
+				"UPDATE login_attempts SET attempts = 0, blocked = 0, blocked_at = NULL WHERE ip = ? AND email = ?",
+				ip, email,
+			)
+			if err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+	}
+
+	return false, nil
+}
+
+// ResetLoginAttempts сбрасывает счетчик попыток входа для данного IP и email
+func ResetLoginAttempts(ip, email string) error {
+	_, err := DB.Exec(
+		"UPDATE login_attempts SET attempts = 0, blocked = 0, blocked_at = NULL WHERE ip = ? AND email = ?",
+		ip, email,
+	)
+	return err
 }
