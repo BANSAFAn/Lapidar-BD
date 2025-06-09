@@ -180,16 +180,61 @@ func VerifyPassword(hashedPassword, password string) bool {
 	return err == nil
 }
 
-// HashPassword хеширует пароль
+// HashPassword хеширует пароль с использованием bcrypt
+// Используется более высокий уровень стоимости для повышения безопасности
 func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	// Используем более высокий уровень стоимости для повышения безопасности
+	// DefaultCost = 10, MaxCost = 31, рекомендуется использовать 12-14 для хорошего баланса
+	cost := 12
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 	if err != nil {
 		return "", err
 	}
 	return string(hash), nil
 }
 
-// GenerateJWT генерирует JWT токен
+// IsPasswordStrong проверяет сложность пароля
+// Пароль должен содержать минимум 8 символов, включая цифры, строчные и заглавные буквы, и специальные символы
+func IsPasswordStrong(password string) (bool, string) {
+	if len(password) < 8 {
+		return false, "Пароль должен содержать минимум 8 символов"
+	}
+
+	hasLower := false
+	hasUpper := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, char := range password {
+		switch {
+		case 'a' <= char && char <= 'z':
+			hasLower = true
+		case 'A' <= char && char <= 'Z':
+			hasUpper = true
+		case '0' <= char && char <= '9':
+			hasDigit = true
+		case char == '!' || char == '@' || char == '#' || char == '$' || char == '%' || char == '^' || char == '&' || char == '*' || char == '(' || char == ')' || char == '-' || char == '_' || char == '+' || char == '=' || char == '{' || char == '}' || char == '[' || char == ']' || char == '|' || char == '\\' || char == ':' || char == ';' || char == '"' || char == '\'' || char == '<' || char == '>' || char == ',' || char == '.' || char == '?' || char == '/':
+			hasSpecial = true
+		}
+	}
+
+	if !hasLower {
+		return false, "Пароль должен содержать хотя бы одну строчную букву"
+	}
+	if !hasUpper {
+		return false, "Пароль должен содержать хотя бы одну заглавную букву"
+	}
+	if !hasDigit {
+		return false, "Пароль должен содержать хотя бы одну цифру"
+	}
+	if !hasSpecial {
+		return false, "Пароль должен содержать хотя бы один специальный символ"
+	}
+
+	return true, ""
+}
+
+// GenerateJWT генерирует JWT токен с улучшенной безопасностью
 func GenerateJWT(email string, sessionID string) (string, error) {
 	// Загружаем конфигурацию администратора для получения секретного ключа
 	adminConfig, err := config.LoadAdminConfig()
@@ -200,14 +245,24 @@ func GenerateJWT(email string, sessionID string) (string, error) {
 	// Создаем новый токен
 	token := jwt.New(jwt.SigningMethodHS256)
 
-	// Устанавливаем claims
+	// Получаем текущее время для расчета времени истечения
+	now := time.Now()
+	expTime := now.Add(time.Hour * 24) // Токен действителен 24 часа
+
+	// Устанавливаем стандартные и дополнительные claims для повышения безопасности
 	claims := token.Claims.(jwt.MapClaims)
 	claims["email"] = email
 	claims["session_id"] = sessionID
-	claims["exp"] = time.Now().Add(time.Hour * 24).Unix() // Токен действителен 24 часа
+	claims["iat"] = now.Unix()                // Время выпуска токена
+	claims["exp"] = expTime.Unix()           // Время истечения токена
+	claims["nbf"] = now.Unix()               // Время, до которого токен недействителен
+	claims["jti"] = GenerateRandomString(16) // Уникальный идентификатор токена
+
+	// Добавляем информацию о пользователе и устройстве
+	claims["type"] = "access"                // Тип токена
 
 	// Подписываем токен
-	tokenString, err := token.SignedString([]byte(adminConfig.Secret))
+	tokenString, err := token.SignedString([]byte(adminConfig.JWTSecret))
 	if err != nil {
 		return "", err
 	}
@@ -215,7 +270,7 @@ func GenerateJWT(email string, sessionID string) (string, error) {
 	return tokenString, nil
 }
 
-// VerifyJWT проверяет JWT токен
+// VerifyJWT проверяет JWT токен с расширенной проверкой безопасности
 func VerifyJWT(tokenString string) (jwt.MapClaims, error) {
 	// Загружаем конфигурацию администратора для получения секретного ключа
 	adminConfig, err := config.LoadAdminConfig()
@@ -223,14 +278,36 @@ func VerifyJWT(tokenString string) (jwt.MapClaims, error) {
 		return nil, err
 	}
 
-	// Парсим токен
+	// Парсим токен с проверкой всех стандартных claims
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Проверяем метод подписи
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("неожиданный метод подписи: %v", token.Header["alg"])
 		}
 
-		return []byte(adminConfig.Secret), nil
+		// Проверяем наличие необходимых claims
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			return nil, fmt.Errorf("невалидные claims")
+		}
+
+		// Проверяем тип токена
+		tokenType, ok := claims["type"].(string)
+		if !ok || tokenType != "access" && tokenType != "temp" {
+			return nil, fmt.Errorf("неверный тип токена")
+		}
+
+		// Проверяем наличие email и session_id (кроме временных токенов)
+		if tokenType == "access" {
+			if _, ok := claims["email"].(string); !ok {
+				return nil, fmt.Errorf("отсутствует email")
+			}
+			if _, ok := claims["session_id"].(string); !ok {
+				return nil, fmt.Errorf("отсутствует session_id")
+			}
+		}
+
+		return []byte(adminConfig.JWTSecret), nil
 	})
 
 	if err != nil {
@@ -239,6 +316,23 @@ func VerifyJWT(tokenString string) (jwt.MapClaims, error) {
 
 	// Проверяем валидность токена
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Дополнительная проверка времени действия токена
+		now := time.Now().Unix()
+
+		// Проверяем, не истек ли срок действия токена
+		if exp, ok := claims["exp"].(float64); ok {
+			if int64(exp) < now {
+				return nil, fmt.Errorf("токен истек")
+			}
+		}
+
+		// Проверяем, не используется ли токен раньше времени
+		if nbf, ok := claims["nbf"].(float64); ok {
+			if now < int64(nbf) {
+				return nil, fmt.Errorf("токен еще не действителен")
+			}
+		}
+
 		return claims, nil
 	}
 

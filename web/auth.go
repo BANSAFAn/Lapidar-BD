@@ -101,6 +101,23 @@ func (api *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверяем, не заблокирован ли IP
+	blocked, err := db.IsLoginBlocked(r.RemoteAddr, req.Email)
+	if err != nil {
+		http.Error(w, "Ошибка проверки блокировки: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if blocked {
+		// Если IP заблокирован, отправляем сообщение о блокировке
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(LoginResponse{
+			Success: false,
+			Message: "Слишком много неудачных попыток входа. Попробуйте позже.",
+		})
+		return
+	}
+
 	// Загружаем конфигурацию администратора
 	adminConfig, err := config.LoadAdminConfig()
 	if err != nil {
@@ -113,13 +130,28 @@ func (api *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// Логируем неудачную попытку входа
 		db.LogLogin(req.Email, r.RemoteAddr, r.UserAgent(), false, "Неверный email")
 
+		// Добавляем неудачную попытку входа
+		blocked, err := db.AddLoginAttempt(r.RemoteAddr, req.Email)
+		if err != nil {
+			http.Error(w, "Ошибка обновления счетчика попыток: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Отправляем ответ с задержкой для предотвращения атак перебором
 		time.Sleep(time.Second)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(LoginResponse{
-			Success: false,
-			Message: "Неверный email или пароль",
-		})
+
+		if blocked {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Слишком много неудачных попыток входа. Попробуйте позже.",
+			})
+		} else {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Неверный email или пароль",
+			})
+		}
 		return
 	}
 
@@ -128,13 +160,35 @@ func (api *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		// Логируем неудачную попытку входа
 		db.LogLogin(req.Email, r.RemoteAddr, r.UserAgent(), false, "Неверный пароль")
 
+		// Добавляем неудачную попытку входа
+		blocked, err := db.AddLoginAttempt(r.RemoteAddr, req.Email)
+		if err != nil {
+			http.Error(w, "Ошибка обновления счетчика попыток: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Отправляем ответ с задержкой для предотвращения атак перебором
 		time.Sleep(time.Second)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(LoginResponse{
-			Success: false,
-			Message: "Неверный email или пароль",
-		})
+
+		if blocked {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Слишком много неудачных попыток входа. Попробуйте позже.",
+			})
+		} else {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Неверный email или пароль",
+			})
+		}
+		return
+	}
+
+	// Сбрасываем счетчик попыток входа при успешной аутентификации
+	err = db.ResetLoginAttempts(r.RemoteAddr, req.Email)
+	if err != nil {
+		http.Error(w, "Ошибка сброса счетчика попыток: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -172,6 +226,23 @@ func (api *APIServer) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверяем, не заблокирован ли IP
+	blocked, err := db.IsLoginBlocked(r.RemoteAddr, req.Email)
+	if err != nil {
+		http.Error(w, "Ошибка проверки блокировки: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if blocked {
+		// Если IP заблокирован, отправляем сообщение о блокировке
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(LoginResponse{
+			Success: false,
+			Message: "Слишком много неудачных попыток входа. Попробуйте позже.",
+		})
+		return
+	}
+
 	// Проверяем временный токен
 	claims, err := db.VerifyJWT(req.Token)
 	if err != nil {
@@ -194,18 +265,40 @@ func (api *APIServer) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверяем TOTP код
-	valid := totp.Validate(req.Code, adminConfig.Secret)
+	valid := totp.Validate(req.Code, adminConfig.TOTPSecret)
 	if !valid {
 		// Логируем неудачную попытку входа
 		db.LogLogin(req.Email, r.RemoteAddr, r.UserAgent(), false, "Неверный TOTP код")
 
+		// Добавляем неудачную попытку входа
+		blocked, err := db.AddLoginAttempt(r.RemoteAddr, req.Email)
+		if err != nil {
+			http.Error(w, "Ошибка обновления счетчика попыток: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		// Отправляем ответ с задержкой для предотвращения атак перебором
 		time.Sleep(time.Second)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(LoginResponse{
-			Success: false,
-			Message: "Неверный код аутентификации",
-		})
+
+		if blocked {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Слишком много неудачных попыток входа. Попробуйте позже.",
+			})
+		} else {
+			json.NewEncoder(w).Encode(LoginResponse{
+				Success: false,
+				Message: "Неверный код аутентификации",
+			})
+		}
+		return
+	}
+
+	// Сбрасываем счетчик попыток входа при успешной аутентификации
+	err = db.ResetLoginAttempts(r.RemoteAddr, req.Email)
+	if err != nil {
+		http.Error(w, "Ошибка сброса счетчика попыток: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -334,7 +427,7 @@ func (api *APIServer) handleSetupTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Генерируем QR-код
-	qrURL, err := GenerateTOTPQRCode(adminConfig.Email, adminConfig.Secret)
+	qrURL, err := GenerateTOTPQRCode(adminConfig.Email, adminConfig.TOTPSecret)
 	if err != nil {
 		http.Error(w, "Ошибка генерации QR-кода: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -345,7 +438,7 @@ func (api *APIServer) handleSetupTOTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"qr_url":  qrURL,
-		"secret":  adminConfig.Secret,
+		"secret":  adminConfig.TOTPSecret,
 	})
 }
 

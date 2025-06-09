@@ -1,19 +1,39 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
+	"time"
 
 	"discord-bot/config"
+	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 )
+
+// CSRFToken представляет CSRF токен
+type CSRFToken struct {
+	Token     string    `json:"token"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CSRFManager управляет CSRF токенами
+type CSRFManager struct {
+	tokens map[string]*CSRFToken
+	mutex  sync.RWMutex
+}
 
 // APIServer представляет API сервер для управления ботом
 type APIServer struct {
-	config   *config.Config
-	mainAddr string
-	altAddrs []string
+	config      *config.Config
+	mainAddr    string
+	altAddrs    []string
+	csrfManager *CSRFManager
 }
 
 // BotStats представляет статистику бота
@@ -35,6 +55,67 @@ type Command struct {
 	Enabled     bool   `json:"enabled"`
 }
 
+// NewCSRFManager создает новый менеджер CSRF токенов
+func NewCSRFManager() *CSRFManager {
+	return &CSRFManager{
+		tokens: make(map[string]*CSRFToken),
+		mutex:  sync.RWMutex{},
+	}
+}
+
+// GenerateToken генерирует новый CSRF токен
+func (cm *CSRFManager) GenerateToken() string {
+	// Генерируем случайный токен
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		// В случае ошибки возвращаем фиксированную строку, но это крайне маловероятно
+		return "SECURE_CSRF_TOKEN_FALLBACK_DO_NOT_USE_IN_PRODUCTION"
+	}
+
+	// Кодируем в base64
+	token := base64.StdEncoding.EncodeToString(b)
+
+	// Сохраняем токен
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+
+	// Очищаем старые токены (старше 24 часов)
+	for k, v := range cm.tokens {
+		if time.Since(v.CreatedAt) > 24*time.Hour {
+			delete(cm.tokens, k)
+		}
+	}
+
+	// Добавляем новый токен
+	cm.tokens[token] = &CSRFToken{
+		Token:     token,
+		CreatedAt: time.Now(),
+	}
+
+	return token
+}
+
+// ValidateToken проверяет валидность CSRF токена
+func (cm *CSRFManager) ValidateToken(token string) bool {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+
+	// Проверяем наличие токена
+	csrfToken, ok := cm.tokens[token]
+	if !ok {
+		return false
+	}
+
+	// Проверяем срок действия токена (24 часа)
+	if time.Since(csrfToken.CreatedAt) > 24*time.Hour {
+		delete(cm.tokens, token)
+		return false
+	}
+
+	return true
+}
+
 // NewAPIServer создает новый экземпляр API сервера
 func NewAPIServer(cfg *config.Config) *APIServer {
 	// Создаем основной адрес
@@ -47,10 +128,53 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 	}
 
 	return &APIServer{
-		config:   cfg,
-		mainAddr: mainAddr,
-		altAddrs: altAddrs,
+		config:      cfg,
+		mainAddr:    mainAddr,
+		altAddrs:    altAddrs,
+		csrfManager: NewCSRFManager(),
 	}
+}
+
+// CSRFMiddleware создает middleware для защиты от CSRF атак
+func (api *APIServer) CSRFMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Пропускаем OPTIONS запросы (для CORS)
+		if r.Method == "OPTIONS" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Пропускаем GET запросы (они безопасны)
+		if r.Method == "GET" {
+			// Для GET запросов генерируем новый CSRF токен и отправляем его в заголовке
+			token := api.csrfManager.GenerateToken()
+			w.Header().Set("X-CSRF-Token", token)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Пропускаем запросы аутентификации (login и verify-totp)
+		if r.URL.Path == "/api/login" || r.URL.Path == "/api/verify-totp" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Для всех остальных запросов (POST, PUT, DELETE) проверяем CSRF токен
+		token := r.Header.Get("X-CSRF-Token")
+		if token == "" {
+			http.Error(w, "Отсутствует CSRF токен", http.StatusForbidden)
+			return
+		}
+
+		// Проверяем валидность токена
+		if !api.csrfManager.ValidateToken(token) {
+			http.Error(w, "Невалидный CSRF токен", http.StatusForbidden)
+			return
+		}
+
+		// Если токен валидный, пропускаем запрос
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Start запускает API сервер на нескольких портах
@@ -62,12 +186,16 @@ func (api *APIServer) Start() error {
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"X-CSRF-Token"},
 		AllowCredentials: true,
 	})
 
+	// Применяем CSRF middleware
+	handler := api.CSRFMiddleware(r)
+
 	// Применяем CORS middleware
-	handler := c.Handler(r)
+	handler = c.Handler(handler)
 
 	// Регистрируем обработчики API
 	r.HandleFunc("/api/config", api.handleGetConfig).Methods("GET")
@@ -98,13 +226,35 @@ func (api *APIServer) Start() error {
 	}()
 
 	// Запускаем альтернативные серверы в отдельных горутинах
-	for _, addr := range api.altAddrs {
-		go func(address string) {
-			err := http.ListenAndServe(address, handler)
+	for i, address := range api.altAddrs {
+		go func(addr string, idx int) {
+			// Создаем отдельный роутер для каждого альтернативного сервера
+			altRouter := mux.NewRouter()
+
+			// Настраиваем CORS для альтернативного сервера
+			altCors := cors.New(cors.Options{
+				AllowedOrigins:   []string{"*"},
+				AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+				AllowedHeaders:   []string{"Content-Type", "Authorization", "X-CSRF-Token"},
+				ExposedHeaders:   []string{"X-CSRF-Token"},
+				AllowCredentials: true,
+			})
+
+			// Применяем CSRF middleware
+			altHandler := api.CSRFMiddleware(altRouter)
+
+			// Применяем CORS middleware
+			altHandler = altCors.Handler(altHandler)
+
+			// Обслуживаем фронтенд
+			altRouter.PathPrefix("/").Handler(http.FileServer(http.Dir("web/frontend/build")))
+
+			// Запускаем сервер
+			err := http.ListenAndServe(addr, altHandler)
 			if err != nil {
-				fmt.Printf("Ошибка запуска альтернативного API сервера на %s: %v\n", address, err)
+				fmt.Printf("Ошибка запуска альтернативного API сервера %d на %s: %v\n", idx+1, addr, err)
 			}
-		}(addr)
+		}(address, i)
 	}
 
 	// Ждем бесконечно, чтобы горутины могли работать
