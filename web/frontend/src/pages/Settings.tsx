@@ -30,7 +30,7 @@ import {
   Delete as DeleteIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
-import axios from 'axios';
+import apiService from '../services/api';
 
 // Интерфейс для конфигурации бота
 interface BotConfig {
@@ -70,8 +70,8 @@ const Settings: React.FC = () => {
     const fetchConfig = async () => {
       try {
         // В реальном приложении здесь будет запрос к API
-        // const response = await axios.get('/api/config');
-        // setConfig(response.data);
+        // const config = await apiService.getConfig();
+        // setConfig(config);
         
         // Имитация загрузки данных
         setTimeout(() => {
@@ -90,7 +90,7 @@ const Settings: React.FC = () => {
           setLoading(false);
         }, 1000);
       } catch (err) {
-        setError('Ошибка загрузки конфигурации');
+        setError('Ошибка загрузки конфигурации: ' + (err.response?.data?.message || err.message));
         setLoading(false);
       }
     };

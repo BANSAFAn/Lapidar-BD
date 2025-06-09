@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Button, TextField, Typography, Paper, Container, Alert, CircularProgress } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import SecurityIcon from '@mui/icons-material/Security';
+import apiService from '../services/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,15 +21,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
+      const data = await apiService.login(email, password);
 
       if (data.success) {
         if (data.require_2fa) {
@@ -44,7 +37,7 @@ const Login = () => {
         setError(data.message || 'Ошибка входа');
       }
     } catch (err) {
-      setError('Ошибка сервера: ' + err.message);
+      setError('Ошибка сервера: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -56,15 +49,7 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/verify-totp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, token: tempToken, code }),
-      });
-
-      const data = await response.json();
+      const data = await apiService.verifyTOTP(tempToken, code);
 
       if (data.success) {
         localStorage.setItem('token', data.token);
@@ -73,7 +58,7 @@ const Login = () => {
         setError(data.message || 'Неверный код');
       }
     } catch (err) {
-      setError('Ошибка сервера: ' + err.message);
+      setError('Ошибка сервера: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }

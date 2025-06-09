@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -7,16 +8,32 @@ import {
   Badge,
   Box,
   Chip,
+  Button,
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
   CheckCircle as CheckCircleIcon,
   Refresh as RefreshIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
+import apiService from '../services/api';
 
 const Header: React.FC = () => {
   // В реальном приложении здесь будет состояние, получаемое от API
   const botStatus = 'online';
+  const navigate = useNavigate();
+  
+  const handleLogout = async () => {
+    try {
+      await apiService.logout();
+      // Очищаем токены при выходе
+      localStorage.removeItem('token');
+      localStorage.removeItem('csrfToken');
+      navigate('/login');
+    } catch (error) {
+      console.error('Ошибка при выходе из системы:', error);
+    }
+  };
 
   return (
     <AppBar position="sticky" sx={{ backgroundColor: '#36393f', boxShadow: 'none', borderBottom: '1px solid #40444b' }}>
@@ -43,6 +60,15 @@ const Header: React.FC = () => {
               <NotificationsIcon />
             </Badge>
           </IconButton>
+          
+          <Button 
+            color="inherit" 
+            startIcon={<LogoutIcon />} 
+            onClick={handleLogout}
+            size="small"
+          >
+            Выход
+          </Button>
         </Box>
       </Toolbar>
     </AppBar>
